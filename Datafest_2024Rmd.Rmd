@@ -1,0 +1,96 @@
+---
+title: "dataExploration"
+author: "me"
+date: "2024-02-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(tidyverse)
+```
+
+
+```{r Data Cleaning}
+# Read in the given csv file
+data_og = read.csv("Drug_overdose_death_rates.csv")
+
+data = data_og %>%
+#Get rid of NDICATOR column since its identical for every row, unique(data_og$INDICATOR)
+  select(-INDICATOR) %>%
+
+# Using the "Deaths per 100,000 resident population, age-adjusted" rates instead of the crude rates (ensuring that differences from one year to another, are not due to differences in the age distribution of the populations from year to year.
+  filter(UNIT == "Deaths per 100,000 resident population, age-adjusted") %>%
+
+# All Unit = Deaths per 100,000 resident population, age-adjusted", get rid of UNIT and UNIT_NUM columns since its identical for every row
+  select(-UNIT, -UNIT_NUM)
+# These columns are just rephrasing the feature as a number:
+  # select(-YEAR_NUM, -AGE_NUM, -STUB_LABEL_NUM, -STUB_LABEL_NUM, -STUB_NAME_NUM)
+```
+
+```{r graph1, echo=FALSE}
+# TOTAL DEATHS BY YEAR AND OVERDOSE TYPE
+data_1.1 = data %>%
+  # Filter year ranges here?
+  filter(STUB_NAME == "Total")
+
+graph_1.1 <- ggplot(data_1.1, aes(x=YEAR, y = ESTIMATE, fill = as.factor(PANEL_NUM))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  ggtitle("TITLE")
+graph_1.2 <- ggplot(data_1.1, aes(x=YEAR, y = ESTIMATE, fill = as.factor(PANEL_NUM))) + 
+  geom_bar(stat = "identity", position = "stack") +
+  ggtitle("TITLE")
+graph_1.1
+graph_1.2
+```
+```{r sex and race, echo=FALSE}
+# TOTAL DEATHS BY YEAR AND OVERDOSE TYPE
+data_2.1 = data %>%
+  # Replace NA's with 0
+  # Filter year ranges here?
+  filter(STUB_LABEL_NUM < 5) %>%
+  mutate(EST = ifelse(is.na(ESTIMATE), 0, ESTIMATE)) %>%
+  group_by(STUB_LABEL_NUM, STUB_LABEL, PANEL_NUM) %>%
+  summarise(EST = sum(EST))
+
+graph_2.1 <- ggplot(data_2.1, aes(x=STUB_LABEL, y = EST, fill = as.factor(PANEL_NUM))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  ggtitle("STUB_LABEL_NUM < 5") + 
+  coord_flip()
+
+data_2.2 = data %>%
+  # Replace NA's with 0
+  # Filter year ranges here?
+  filter(STUB_LABEL_NUM > 5 | STUB_LABEL == 0.1) %>%
+  mutate(EST = ifelse(is.na(ESTIMATE), 0, ESTIMATE)) %>%
+  group_by(STUB_LABEL_NUM, STUB_LABEL, PANEL_NUM) %>%
+  summarise(EST = sum(EST))
+
+graph_2.2 <- ggplot(data_2.2, aes(x=STUB_LABEL, y = EST, fill = as.factor(PANEL_NUM))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  ggtitle("HISPANIC Y/N") + 
+  coord_flip()
+
+data_2.3 = data %>%
+  # Replace NA's with 0
+  # Filter year ranges here?
+  filter(STUB_LABEL_NUM < 3) %>%
+  mutate(EST = ifelse(is.na(ESTIMATE), 0, ESTIMATE)) %>%
+  group_by(STUB_LABEL_NUM, STUB_LABEL, PANEL_NUM) %>%
+  summarise(EST = sum(EST))
+
+graph_2.3 <- ggplot(data_2.3, aes(x=STUB_LABEL, y = EST, fill = as.factor(PANEL_NUM))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  ggtitle("BY SEX")
+graph_2.3
+graph_2.2
+graph_2.1
+```
+```{r}
+unique(data$STUB_LABEL)
+
+
+data_age = data_og %>%
+  filter(STUB_NAME=="Age")
+```
