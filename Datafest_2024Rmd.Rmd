@@ -14,19 +14,20 @@ library(tidyverse)
 
 ```{r Data Cleaning}
 # Read in the given csv file
-data_og = read.csv("Drug_overdose_death_rates.csv")
+data_og = read.csv("Drug_overdose_death_rates__by_drug_type__sex__age__race__and_Hispanic_origin__United_States_20240518.csv")
 
 data = data_og %>%
 #Get rid of NDICATOR column since its identical for every row, unique(data_og$INDICATOR)
   select(-INDICATOR) %>%
 
 # Using the "Deaths per 100,000 resident population, age-adjusted" rates instead of the crude rates (ensuring that differences from one year to another, are not due to differences in the age distribution of the populations from year to year.
-  filter(UNIT == "Deaths per 100,000 resident population, age-adjusted") %>%
+  filter(UNIT == "Deaths per 100,000 resident population, age-adjusted")
 
-# All Unit = Deaths per 100,000 resident population, age-adjusted", get rid of UNIT and UNIT_NUM columns since its identical for every row
-  select(-UNIT, -UNIT_NUM)
-# These columns are just rephrasing the feature as a number:
-  # select(-YEAR_NUM, -AGE_NUM, -STUB_LABEL_NUM, -STUB_LABEL_NUM, -STUB_NAME_NUM)
+
+data_age = data_og %>%
+#Get rid of NDICATOR column since its identical for every row, unique(data_og$INDICATOR)
+  select(-INDICATOR) %>%
+  filter(UNIT == "Deaths per 100,000 resident population, crude")
 ```
 
 ```{r graph1, echo=FALSE}
@@ -45,7 +46,7 @@ graph_1.1
 graph_1.2
 ```
 ```{r sex and race, echo=FALSE}
-# TOTAL DEATHS BY YEAR AND OVERDOSE TYPE
+# TOTAL DEATHS BY SEX AND RACE
 data_2.1 = data %>%
   # Replace NA's with 0
   # Filter year ranges here?
@@ -88,9 +89,59 @@ graph_2.2
 graph_2.1
 ```
 ```{r}
-unique(data$STUB_LABEL)
+# TOTAL DEATHS BY AGE
+data_3.1 = data_age %>%
+  # Replace NA's with 0
+  # Filter year ranges here?
+  filter(AGE_NUM > 1.5) %>%
+  mutate(EST = ifelse(is.na(ESTIMATE), 0, ESTIMATE)) %>%
+  group_by(STUB_LABEL_NUM, STUB_LABEL, PANEL_NUM) %>%
+  summarise(EST = sum(EST))
 
+data_3.2 = data_age %>%
+  # Replace NA's with 0
+  filter(AGE_NUM <= 1.5) %>%
+  # Filter year ranges here?
+  mutate(EST = ifelse(is.na(ESTIMATE), 0, ESTIMATE)) %>%
+  group_by(STUB_LABEL_NUM, STUB_LABEL, PANEL_NUM) %>%
+  summarise(EST = sum(EST))
 
-data_age = data_og %>%
-  filter(STUB_NAME=="Age")
+data_3.3 = data_age %>%
+  # Replace NA's with 0
+  # Filter year ranges here?
+  mutate(EST = ifelse(is.na(ESTIMATE), 0, ESTIMATE)) %>%
+  group_by(STUB_LABEL_NUM, STUB_LABEL, PANEL_NUM) %>%
+  summarise(EST = sum(EST))
+
+data_3.4 = data_age %>%
+  # Replace NA's with 0
+  # Filter year ranges here?
+  filter(STUB_NAME == "Age") %>%
+  filter(PANEL_NUM == 0) %>%
+  mutate(EST = ifelse(is.na(ESTIMATE), 0, ESTIMATE)) %>%
+  group_by(AGE, YEAR) %>%
+  summarise(EST = sum(EST))
+
+graph_3.1 <- ggplot(data_3.1, aes(x=STUB_LABEL, y = EST, fill = as.factor(PANEL_NUM))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  ggtitle("AGE_NUM > 1.5") +
+  coord_flip()
+graph_3.2 <- ggplot(data_3.2, aes(x=STUB_LABEL, y = EST, fill = as.factor(PANEL_NUM))) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  ggtitle("AGE_NUM <= 1.5") +
+  coord_flip()
+graph_3.3 <- ggplot(data_3.3, aes(x=STUB_LABEL, y = EST, fill = as.factor(PANEL_NUM))) + 
+  geom_bar(stat = "identity", position = "stack") +
+  ggtitle("BY AGE") +
+  coord_flip()
+
+graph_3.4 <- ggplot(data_3.4, aes(x=YEAR, y = EST, color = AGE)) + 
+  geom_line() +
+  ggtitle("BY AGE")
+
+graph_3.1
+graph_3.2
+graph_3.3
+graph_3.4
 ```
+
