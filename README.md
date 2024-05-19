@@ -10,3 +10,7 @@ Faced with this sobering reality, the U.S. government has turned to data and ana
 
 ## Datathon Submission Presentation
 https://github.com/CarolineeXi/Datathon_Project/blob/main/Flex_Recording.mp4
+
+## Methodology 
+Throughout the analysis of the graphs, we can see that as the year increases more estimated deaths are expected to occur with males taking up a higher proportion of fatalities for gender. Depending on the drug we can also see that different age groups are more susceptible to overdose as seen in our detailed analysis. We also see that overall the white population is the most susceptible to drug overdose.
+We use random forests to forecast future drug overdose death rates for each demographic group. After using hyperparameter tuning, we have the improved model with the RMSE equals to 1.26 and marginal of error equal to 0.07. By exploring feature importance in the random forest, we can conclude that drug overdose type and age are most strongly associated with higher death rates.
