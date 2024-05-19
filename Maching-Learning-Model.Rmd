@@ -1,0 +1,188 @@
+---
+title: "Machine Learning Model"
+author: "Stat342 Team"
+date: "2024-05-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(tidyverse)
+library(VIM)
+library(dplyr)
+library(skimr)
+library(mice)
+library(caret)
+library(randomForest)
+library(xgboost)
+library(e1071)
+```
+
+
+```{r}
+data <- read.csv("Drug_overdose_death_rates__by_drug_type__sex__age__race__and_Hispanic_origin__United_States_20240518.csv")
+skim(data)
+
+# Visualize the pattern of missing values
+aggr(data, col = c('navyblue', 'red'), numbers = TRUE, sortVars = TRUE, labels = names(data), cex.axis = 0.7, gap = 3, ylab = c("Missing data", "Pattern"))
+```
+We see there is no duplicate rows and 'Estimate' variable has 1111 missing values, which is 17.84% of the total data.
+
+# Data Cleaning:
+
+We already have some numeric variables for levels of category variables, so we decided to delete the category variables. Also, we dropped the Flag variable since it's not critical for analysis. For the missing value in Estimate, we replace them by using Multiple Imputation.
+
+```{r,include=FALSE}
+data <- data %>% select(-INDICATOR, -PANEL, -UNIT, -STUB_NAME, -STUB_LABEL, -YEAR, -AGE, -FLAG)
+
+#Multiple Imputation using mice
+imputed_data <- mice(data, m = 5, method = 'pmm', seed = 500)
+complete_data <- complete(imputed_data, 1)
+```
+
+# Partition data into training and test datasets:
+
+```{r}
+set.seed(123)
+
+# Partition data into training and test sets
+trainIndex <- createDataPartition(complete_data$ESTIMATE, p = 0.8, list = FALSE, times = 1)
+dataTrain <- complete_data[trainIndex, ]
+dataTest <- complete_data[-trainIndex, ]
+
+# Check the dimensions of the resulting datasets
+dim(dataTrain)
+dim(dataTest)
+```
+
+# Train Random Forest Model:
+
+```{r}
+RF_model <- randomForest(ESTIMATE ~ ., data = dataTrain)
+RF_model
+```
+An explained variance of 86.26% suggests that the model is performing well and is able to explain a large proportion of the variability in drug overdose death rates. 
+
+# Evaluate Random Forest Model:
+
+```{r}
+predicted <- predict(RF_model, dataTest)
+
+# Calculate RMSE
+rmse <- sqrt(mean((dataTest$ESTIMATE - predicted)^2))
+
+# Calculate 95% confidence interval for RMSE
+n <- nrow(dataTest) # Number of observations in test data
+t_value <- qt(0.975, df = n - 1) # t-value for 95% confidence interval
+margin_of_error <- t_value * (rmse / sqrt(n))
+
+# Confidence interval
+lower_bound <- rmse - margin_of_error
+upper_bound <- rmse + margin_of_error
+
+# Print results
+print(paste("RMSE:", rmse))
+print(paste("Marginal of Error:",margin_of_error))
+print(paste("95% Confidence Interval for RMSE:", lower_bound, "-", upper_bound))
+```
+
+In this case, an RMSE of approximately 2.057 indicates that, on average, the model's predictions are off by about 2.057 units of the dependent variable (drug overdose death rates). Besides, with a 95% confidence level, we expect that if we were to repeat this process multiple times, approximately 95% of the time, the true RMSE would fall within the range of 1.943 to 2.172.
+
+# Hyperparameter Tuning
+
+To further assess the model’s performance, we tried experiments with different hyperparameters, such as the number of trees and the number of variables tried at each split, to see if the model performance can be improved.
+
+```{r}
+# Define the grid of hyperparameters to search
+tune_grid <- expand.grid(
+  mtry = c(2, 3, 4, 5)  # Number of variables randomly sampled as candidates at each split
+)
+
+# Set up cross-validation
+train_control <- trainControl(method = "cv", number = 5, search = "grid")
+
+# Train the Random Forest model with hyperparameter tuning
+set.seed(123)
+tuned_rf_model <- train(
+  ESTIMATE ~ PANEL_NUM + UNIT_NUM + STUB_NAME_NUM + STUB_LABEL_NUM + YEAR_NUM + AGE_NUM, 
+  data = dataTrain,
+  method = "rf",
+  trControl = train_control,
+  tuneGrid = tune_grid,
+  ntree = 500
+)
+
+# Print the best hyperparameters
+print(tuned_rf_model$bestTune)
+```
+The output indicates that the best value for the mtry parameter, as determined by the hyperparameter tuning process, is 5.
+
+# Evaluate the Tuned Model
+```{r}
+# Predict on the test data using the best model
+predictions <- predict(tuned_rf_model, dataTest)
+
+# Calculate RMSE
+rmse <- sqrt(mean((dataTest$ESTIMATE - predictions)^2))
+
+# Calculate 95% confidence interval for RMSE
+n <- nrow(dataTest) 
+t_value <- qt(0.975, df = n - 1) 
+margin_of_error <- t_value * (rmse / sqrt(n))
+
+# Confidence interval
+lower_bound <- rmse - margin_of_error
+upper_bound <- rmse + margin_of_error
+
+# Print results
+cat("RMSE:", rmse, "\n")
+print(paste("Marginal of Error:",margin_of_error))
+cat("95% Confidence Interval for RMSE:", lower_bound, "-", upper_bound, "\n")
+```
+
+# Exploring feature importance in a Random Forest:
+
+```{r}
+importance <- varImp(tuned_rf_model)
+plot(importance, main = "Variable Importance for Predicting Drug Overdose Death Rates")
+```
+Panel demographic factors have the most influence on drug overdose death rates.
+A higher importance value suggests that the feature has a stronger influence on the model's predictions. Features with higher importance values are considered more informative by the model and have a greater impact on its decision-making process.
+
+
+
+# Comparing with XGBoost Model:
+
+```{r,warning=FALSE}
+# Convert data to DMatrix format for XGBoost
+train_matrix <- xgb.DMatrix(as.matrix(dataTrain[, -7]), label = dataTrain$ESTIMATE)
+test_matrix <- xgb.DMatrix(as.matrix(dataTrain[, -7]))
+
+# Train XGBoost model
+xgb_model <- xgboost(data = train_matrix, objective = "reg:squarederror", nrounds = 100)
+xgb_model
+```
+
+```{r,warning=FALSE}
+# Evaluate XGBoost model
+predicted_xgb <- predict(xgb_model, test_matrix)
+
+# Calculate RMSE
+rmse_xgb <- sqrt(mean((dataTest$ESTIMATE - predicted_xgb)^2))
+
+# Calculate 95% confidence interval for RMSE
+n <- nrow(dataTest)
+t_value <- qt(0.975, df = n - 1)
+margin_of_error_xgb <- t_value * (rmse_xgb / sqrt(n))
+
+# Confidence interval
+lower_bound_xgb <- rmse_xgb - margin_of_error_xgb
+upper_bound_xgb <- rmse_xgb + margin_of_error_xgb
+
+# Print results
+print(paste("XGBoost RMSE:", rmse_xgb))
+print(paste("Marginal of Error:",margin_of_error_xgb))
+print(paste("XGBoost 95% Confidence Interval for RMSE:", lower_bound_xgb, "-", upper_bound_xgb))
+```
+We see the Random Forest model appears to be more stable and consistent in its predictions, as evidenced by its lower RMSE and narrower confidence interval.
