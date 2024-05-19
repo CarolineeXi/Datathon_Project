@@ -1,0 +1,125 @@
+---
+title: "TEST FOR DATAFEST"
+output: 
+  flexdashboard::flex_dashboard:
+    theme:
+      version: 4
+      bootswatch: lux
+    orientation: rows
+    social: menu
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(cache = TRUE)
+library(readr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(shiny)
+library(highcharter)
+```
+
+```{r}
+knitr::opts_chunk$set(cache = TRUE)
+
+thm <- 
+  hc_theme(
+    colors = c("#1a6ecc", "black", "#90ed7d"),
+    chart = list(
+      backgroundColor = "transparent",
+      style = list(fontFamily = "Helvetica")
+    ),
+    xAxis = list(
+      gridLineWidth = 1
+    )
+  )
+
+data_og = read.csv("Drug_overdose_death_rates__by_drug_type__sex__age__race__and_Hispanic_origin__United_States_20240518.csv")
+
+data = data_og %>%
+#Get rid of NDICATOR column since its identical for every row, unique(data_og$INDICATOR)
+  select(-INDICATOR) %>%
+
+# Using the "Deaths per 100,000 resident population, age-adjusted" rates instead of the crude rates (ensuring that differences from one year to another, are not due to differences in the age distribution of the populations from year to year.
+  filter(UNIT == "Deaths per 100,000 resident population, age-adjusted")
+
+
+data_age = data_og %>%
+#Get rid of NDICATOR column since its identical for every row, unique(data_og$INDICATOR)
+  select(-INDICATOR) %>%
+  filter(UNIT == "Deaths per 100,000 resident population, crude")
+```
+
+Data By Demographic
+================================
+
+Questions to Explore: {.sidebar}
+-------------------------------------
+
+1. How age and drug type influence deaths by overdose?
+
+```{r}
+sliderInput("year0", label = "Year:",
+            min = 1999, max = 2018, value = c(1999,2018), step = 1, ticks=F, sep="")
+selectInput("layer", label = "PANEL",
+            choices = c("Total", "Any Opioid", "Natural and Semisynthetic Opioids", "Methadone", "Synthetic Opioids (other than methadone)", "Heroin"), selected = "Total")
+```
+
+Column {.tabset}
+-------------------------------------
+
+### Distribution 1
+
+```{r, cache=FALSE}
+renderPlot({ 
+  if (input$layer == "Total") {
+    panel_selection = data_age %>%
+    filter(PANEL == "All drug overdose deaths")
+  } else if (input$layer == "Any Opioid") {
+    panel_selection = data_age %>%
+    filter(PANEL == "Drug overdose deaths involving any opioid")
+  } else if (input$layer == "Natural and Semisynthetic Opioids") {
+    panel_selection = data_age %>%
+    filter(PANEL == "Drug overdose deaths involving natural and semisynthetic opioids")
+  } else if (input$layer == "Methadone") {
+    panel_selection = data_age %>%
+    filter(PANEL == "Drug overdose deaths involving methadone")
+  } else if (input$layer == "Synthetic Opioids (other than methadone)") {
+    panel_selection = data_age %>%
+    filter(PANEL == "Drug overdose deaths involving other synthetic opioids (other than methadone)")
+  } else if (input$layer == "Heroin") {
+    panel_selection = data_age %>%
+    filter(PANEL == "Drug overdose deaths involving heroin")}
+  
+  data_3.1 = panel_selection %>%
+  # Replace NA's with 0
+  filter(YEAR <= input$year0[2]) %>%
+  filter(YEAR >= input$year0[1]) %>%
+  filter(AGE_NUM > 1.5) %>%
+  mutate(EST = ifelse(is.na(ESTIMATE), 0, ESTIMATE)) %>%
+  group_by(STUB_LABEL_NUM, STUB_LABEL, PANEL_NUM) %>%
+  summarise(EST = sum(EST))
+  
+ggplot(data_3.1, aes(x=reorder(STUB_LABEL, EST), y = EST)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  ggtitle("Overdose Deaths By Age") +
+  coord_flip()
+})
+
+```
+
+
+
+Methodology 
+================================
+
+Questions to Explore: {.sidebar}
+-------------------------------------
+
+1. How Did we clean the data
+
+
+Explore Something Else
+================================
