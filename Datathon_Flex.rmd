@@ -43,6 +43,11 @@ data_crude = data_og %>%
 # Using the "Deaths per 100,000 resident population, crude" rates instead of the age-adjusted rates to look at the age distributions.
   filter(UNIT == "Deaths per 100,000 resident population, crude")
 
+data_adjusted = data_og %>%
+# Using the "Deaths per 100,000 resident population, age-adjusted" rates instead of the crude rates (ensuring that differences from one year to another, are not due to differences in the age distribution of the populations from year to year.
+  filter(UNIT == "Deaths per 100,000 resident population, age-adjusted")
+
+
 ### Data for age
 health_data_og = read.csv("Drug_overdose_death_rates__by_drug_type__sex__age__race__and_Hispanic_origin__United_States_20240518.csv")
 
@@ -104,10 +109,6 @@ for(i in 1:n) {
 
 ```
 
-
-
-
-
 Data By Demographic
 ================================
 
@@ -117,6 +118,7 @@ Questions to Explore: {.sidebar}
 1. What are the trends in drug overdose death rates over time?
 
 ```{r}
+# Creating the user inputs on the sidebar (year slider and panel dropdown)
 sliderInput("year0", label = "Year:",
             min = 1999, max = 2018, value = c(1999,2018), step = 1, ticks=F, sep="")
 selectInput("layer", label = "Deaths By:",
@@ -320,12 +322,52 @@ renderPlot({
 })
 ```
 
-### Methodology For Data Visualizations: $^{a \ and \ b}$
+### By Drug Type $^a$
+
+```{r, cache=FALSE}
+renderPlot({ 
+  if (input$layer == "Total Overdoses") {
+    panel_selection = data_adjusted %>%
+    filter(PANEL == "All drug overdose deaths")
+  } else if (input$layer == "Any Opioid") {
+    panel_selection = data_adjusted %>%
+    filter(PANEL == "Drug overdose deaths involving any opioid")
+  } else if (input$layer == "Natural and Semisynthetic Opioids") {
+    panel_selection = data_adjusted %>%
+    filter(PANEL == "Drug overdose deaths involving natural and semisynthetic opioids")
+  } else if (input$layer == "Methadone") {
+    panel_selection = data_adjusted %>%
+    filter(PANEL == "Drug overdose deaths involving methadone")
+  } else if (input$layer == "Synthetic Opioids (other than methadone)") {
+    panel_selection = data_adjusted %>%
+    filter(PANEL == "Drug overdose deaths involving other synthetic opioids (other than methadone)")
+  } else if (input$layer == "Heroin") {
+    panel_selection = data_adjusted %>%
+    filter(PANEL == "Drug overdose deaths involving heroin")}
+  
+df = panel_selection %>%
+    filter(YEAR <= input$year0[2]) %>%
+    filter(YEAR >= input$year0[1]) %>%
+    # Replace NA's with 0
+    mutate(ESTIMATE = ifelse(is.na(ESTIMATE), 0, ESTIMATE))
+  
+ggplot(df, aes(x=YEAR, y = ESTIMATE)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  ggtitle("Overdose Deaths By Drug Type") 
+})
+
+```
+
+### Introduction and Methodology: $^{a \ and \ b}$
+
+
+Our team is particularly interested in exploring patterns and relationships related to drug overdose in the USA. We have presented our findings through this dashboard
+where we have included visualization graphs that shows the trends of drug overdose death rates by drug overdose type, sex, age, and race, and how a combination of drug overdose type, sex, and age shows the trend of drug overdose death rates. We also created a machine learning model showing the variables that possibly have higher influence on drug overdose death rates.
 
 Method a:
 
 * NA's were replaced with 0
-* Using the "Deaths per 100,000 resident population, crude"  instead of the age-adjusted rates
+* Using the "Deaths per 100,000 resident population, age-adjusted" for the "By Drug Type Graph, using crude for all other graphs with methodology a.
 * Otherwise the same as the data set given
 
 
@@ -337,6 +379,19 @@ Method b:
 Analysis
 ================================
 
-
 Machine Learning Model
 ================================
+
+Row {.tabset}
+-----------------------------------------------------------------------
+### Model Results
+
+```{r picture2, echo = F, fig.cap = "Residuals For Model", out.width = '100%'}
+knitr::include_graphics("Residuals.png")
+```
+### Feature Importance
+
+```{r picture3, echo = F, fig.cap = "Feature Importance", out.width = '100%'}
+knitr::include_graphics("Feature_Importance.png")
+```
+### Methodology
